@@ -1,0 +1,14 @@
+{
+  "name": "churchland-block-fit",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Three-piece touchscreen puzzle with a juice reward after each completed trial.",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {
+    "node": "22.x"
+  }
+}
