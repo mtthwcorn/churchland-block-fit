@@ -32,9 +32,13 @@ Open `http://localhost:8765/`. The build produces a standalone static site in `d
 
 ## Vercel
 
-Import this repository into the Churchland Lab Vercel account. The root `vercel.json` specifies the build, test command, and `dist/` output. There are no environment variables, database, server functions, or application secrets. The game opens at the site's root URL.
+Live game: **https://churchland-block-fit.vercel.app/**
 
-The production branch is `main`. Once Vercel's GitHub connection is configured, pushing to `main` publishes updates after tests pass. Keep credentials and the local `.vercel/` directory out of Git.
+The `churchland-block-fit` project belongs to the **Churchland Lab** Vercel team. Its dashboard is https://vercel.com/churchland-lab/churchland-block-fit. The connected GitHub repository is https://github.com/mtthwcorn/churchland-block-fit.
+
+The root `vercel.json` specifies the build, test command, and `dist/` output. There are no environment variables, database, server functions, or application secrets. The game opens at the site's root URL.
+
+The production branch is `main`. Vercel's GitHub integration publishes updates after tests pass. Keep credentials and the local `.vercel/` directory out of Git.
 
 ## Lab handoff
 
