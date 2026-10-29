@@ -41,6 +41,10 @@ function fixture() {
   return {run,nodes,document,link:run('link'),time:value=>{time=value;},fit:(piece='square',slot=piece)=>run(`placePiece(${JSON.stringify(piece)},${JSON.stringify(slot)})`)};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
+function editAmount(f,value) {
+  f.nodes['reward-ml'].value=value;
+  f.nodes['reward-ml'].dispatchEvent(new Event('input'));
+}
 
 test('practice fits, connection and old settings never activate the pump',async()=>{
   const f=fixture();assert.equal(f.nodes['reward-ml'].value,'1.5');
@@ -101,4 +105,56 @@ test('practice completes all three blocks and starts fresh without dispensing',a
   const layout=f.run('puzzle.layout');f.run('freshBoard()');
   assert.equal(f.run('puzzle.placed.length'),0);assert.notEqual(f.run('puzzle.layout'),layout);
   assert.deepEqual(f.link.runs,[]);
+});
+
+test('editing juice during a trial applies the latest amount at completion without pausing',async()=>{
+  const f=fixture();f.link.connect();f.run('startRewards()');
+  assert.equal(f.nodes['reward-ml'].disabled,false);
+  await f.fit('square');editAmount(f,'3');
+  assert.equal(f.run('paused'),false);assert.deepEqual(f.link.runs,[]);
+  assert.match(f.nodes['footer-note'].textContent,/3 mL per trial/);
+  await f.fit('tall');editAmount(f,'.75');
+  const fit=f.fit('long');await tick();
+  assert.deepEqual(f.link.runs,[.5]);
+  f.time(500);f.link.state('idle');await fit;f.run('clearTimeout(restartTimer)');
+});
+
+test('editing while dispensing leaves the current pulse intact and changes the next trial',async()=>{
+  const f=fixture();f.link.connect();f.run('startRewards()');
+  await f.fit('square');await f.fit('tall');
+  const first=f.fit('long');await tick();
+  assert.deepEqual(f.link.runs,[1]);assert.equal(f.nodes['reward-ml'].disabled,false);
+  editAmount(f,'3');
+  assert.equal(f.link.phase,'running');assert.deepEqual(f.link.runs,[1]);
+  assert.match(f.nodes['dose-preview'].textContent,/Next trial: 2 s/);
+  assert.match(f.nodes.message.textContent,/1.5 mL estimated/);
+  f.time(1000);f.link.state('idle');await first;
+  f.run('freshBoard()');await f.fit('square');await f.fit('tall');
+  const second=f.fit('long');await tick();assert.deepEqual(f.link.runs,[1,2]);
+  f.time(3000);f.link.state('idle');await second;f.run('clearTimeout(restartTimer)');
+});
+
+test('a completed trial locks its reward before the final block animation finishes',async()=>{
+  const f=fixture();f.link.connect();f.run('startRewards()');
+  await f.fit('square');await f.fit('tall');
+  let finish;
+  f.run('reducedMotion.matches=false');
+  f.nodes['slot-long'].animate=()=>({finished:new Promise(resolve=>{finish=resolve;}),cancel(){finish();}});
+  const fit=f.fit('long');
+  editAmount(f,'3');assert.deepEqual(f.link.runs,[]);
+  assert.match(f.nodes['footer-note'].textContent,/Next trial: 3 mL/);
+  finish();await tick();assert.deepEqual(f.link.runs,[1]);
+  f.time(1000);f.link.state('idle');await fit;f.run('clearTimeout(restartTimer)');
+});
+
+test('invalid edits at completion pause without dispensing or replaying the completed trial',async()=>{
+  for(const invalid of ['', '0', '-1', '.01', '91', 'not-a-number']) {
+    const f=fixture();f.link.connect();f.run('startRewards()');
+    await f.fit('square');await f.fit('tall');editAmount(f,invalid);
+    await f.fit('long');
+    assert.deepEqual(f.link.runs,[],`No reward for ${JSON.stringify(invalid)}`);
+    assert.equal(f.run('paused'),true);
+    editAmount(f,'3');f.run('startRewards()');await f.fit('long');
+    assert.deepEqual(f.link.runs,[]);f.run('clearTimeout(restartTimer)');
+  }
 });

@@ -6,7 +6,7 @@ const $ = id => document.getElementById(id);
 const link = new PumpLink(), runner = new PulseRunner(link);
 const format = value => Number(value.toFixed(3)).toLocaleString(undefined, {maximumFractionDigits: 3});
 let puzzle = newPuzzle(), selected = null, mode = 'practice', paused = false;
-let rewardMl = 0, operation = false, stopping = 0, inputLocked = false;
+let operation = false, stopping = 0, inputLocked = false;
 let restartTimer, pointer = null, ghost = null, ignoreClickUntil = 0;
 let motionVersion = 0, motionAnimations = [];
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -76,13 +76,15 @@ async function placePiece(pieceId, slotId, from = null) {
     return;
   }
   from ||= $(`piece-${pieceId}`).getBoundingClientRect();
+  // Lock this trial's amount at completion, before the final snap animation.
+  const trialRewardMl = result.complete ? Number($('reward-ml').value) : null;
   puzzle = result.puzzle; selected = null; inputLocked = true;
   const version = ++motionVersion;
   feedback = 'Nice fit!'; message = result.complete ? 'You fitted all three blocks.' : 'Now fit another block.';
   refresh(); requestWakeLock();
   await animateFit(pieceId,from);
   if (version !== motionVersion) return;
-  if (result.complete && mode === 'rewards' && !paused) await payReward();
+  if (result.complete && mode === 'rewards' && !paused) await payReward(trialRewardMl);
   if (version !== motionVersion) return;
   motionAnimations = []; inputLocked = false; refresh(); checkEnd();
 }
@@ -92,22 +94,23 @@ function pumpReady() {
 function refresh() {
   const connected = !!link.device?.gatt.connected && !['offline', 'connecting'].includes(link.phase);
   const active = mode === 'rewards' && !paused;
+  const nextTrial = mode === 'rewards' && puzzle.placed.length === BLOCKS.length;
   const ready = pumpReady();
   $('connection-label').textContent = link.phase === 'connecting' ? 'Connecting…' : connected ? `${link.device.name || 'Pump'} connected` : link.message || 'Not connected';
   $('connect').hidden = connected;
   $('connect').disabled = !navigator.bluetooth || !window.isSecureContext || link.phase === 'connecting' || operation || !!stopping;
   $('disconnect').hidden = !connected;
   $('disconnect').disabled = !!stopping;
-  let configOK = false;
+  let configOK = false, plan;
   const entered = $('reward-ml').value !== '';
   try {
-    const plan = rewardPlan(Number($('reward-ml').value)); configOK = true;
-    $('dose-preview').textContent = `${format(plan.durationMs / 1000)} s / trial · estimated at ${PUMP_ML_PER_MINUTE} mL/min`;
+    plan = rewardPlan(Number($('reward-ml').value)); configOK = true;
+    $('dose-preview').textContent = `${nextTrial ? 'Next trial: ' : ''}${format(plan.durationMs / 1000)} s / trial · estimated at ${PUMP_ML_PER_MINUTE} mL/min`;
   } catch (error) {
     $('dose-preview').textContent = entered ? error.message : `Estimated at ${PUMP_ML_PER_MINUTE} mL/min`;
   }
   $('reward-ml').setAttribute('aria-invalid', String(entered && !configOK));
-  $('reward-ml').disabled = active || operation || !!stopping;
+  $('reward-ml').disabled = false;
   $('start-rewards').disabled = !ready || !configOK || active;
   $('start-rewards').textContent = active ? 'Juice is on' : 'Start with juice';
   $('practice').hidden = mode === 'practice';
@@ -115,7 +118,9 @@ function refresh() {
   $('mode').textContent = paused ? 'Paused' : active ? 'Juice rewards on' : 'Practice mode';
   $('mode-dot').classList.toggle('live', active);
   $('feedback').textContent = feedback; $('message').textContent = message;
-  $('footer-note').textContent = mode === 'rewards' ? `${format(rewardMl)} mL per trial · 90 mL/min` : 'Juice rewards are off.';
+  $('footer-note').textContent = mode !== 'rewards' ? 'Juice rewards are off.' : configOK
+    ? `${nextTrial ? 'Next trial: ' : ''}${format(plan.requestedMl)} mL per trial · 90 mL/min`
+    : 'Enter 0.15–90 mL before completing the trial.';
   $('pause').textContent = stopping ? 'Stopping…' : paused ? 'Resume' : 'Pause';
   $('pause').disabled = !!stopping || (paused && (operation || (mode === 'rewards' && (!ready || !configOK))));
   $('pause').classList.toggle('resuming', paused && !stopping);
@@ -153,10 +158,10 @@ async function pausePlay(reason = 'Session paused.') {
   ++stopping; refresh();
   try { await runner.stop(); } finally { --stopping; refresh(); }
 }
-async function payReward() {
+async function payReward(trialRewardMl) {
   operation = true; refresh();
   try {
-    const plan = rewardPlan(rewardMl);
+    const plan = rewardPlan(trialRewardMl);
     feedback = 'Trial complete!'; message = `Juice reward · ${format(plan.requestedMl)} mL estimated.`;
     refresh(); await runner.pulse(plan.durationMs / 1000);
     message = 'Ready for the next trial.';
@@ -180,8 +185,8 @@ $('reward-ml').addEventListener('input', () => {
 function startRewards() {
   if (!pumpReady() || document.hidden) return;
   try {
-    const plan = rewardPlan(Number($('reward-ml').value));
-    rewardMl = plan.requestedMl; mode = 'rewards'; paused = false;
+    rewardPlan(Number($('reward-ml').value));
+    mode = 'rewards'; paused = false;
     feedback = 'Ready to play.'; message = 'Fit all three blocks to earn one juice reward.';
     refresh(); checkEnd(); requestWakeLock();
   } catch (error) { message = error.message; refresh(); }

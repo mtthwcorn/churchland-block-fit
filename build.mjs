@@ -8,7 +8,7 @@ await mkdir(output, {recursive: true});
 await writeFile(new URL('index.html', output), html.replace('<!-- STYLES -->', `<style>${css}</style>`).replace('<!-- SCRIPT -->', `<script type="module">${js}</script>`));
 await writeFile(new URL('icon.svg', output), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="32" fill="#185c43"/><rect x="30" y="30" width="84" height="84" rx="10" fill="#e6b94d"/><rect x="126" y="30" width="36" height="84" rx="9" fill="#76b58b"/><rect x="30" y="126" width="132" height="36" rx="9" fill="#7aabd8"/></svg>');
 await writeFile(new URL('manifest.webmanifest', output), JSON.stringify({name: 'Block fit · Pump play', short_name: 'Block fit', start_url: './', scope: './', display: 'standalone', background_color: '#f2f4f2', theme_color: '#185c43', icons: [{src: './icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any'}]}));
-await writeFile(new URL('sw.js', output), `const CACHE = 'churchland-block-fit-v1';
+await writeFile(new URL('sw.js', output), `const CACHE = 'churchland-block-fit-v2';
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(['./', './index.html', './manifest.webmanifest', './icon.svg']))));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('churchland-block-fit-') && key !== CACHE).map(key => caches.delete(key))))));
 self.addEventListener('fetch', event => {

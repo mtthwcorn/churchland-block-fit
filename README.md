@@ -10,7 +10,9 @@ Each tablet connects directly over Bluetooth to its own Arduino UNO R4 WiFi and 
 - Connect the pump, enter **mL per trial**, and select **Start with juice**.
 - Juice runs **once, only after all three blocks fit**. Blocks one and two dispense nothing.
 - The fixed rate is **90 mL/min (1.5 mL/s)**. For example, 1.5 mL per trial produces a one-second command. Displayed volume is an estimate, not measured flow.
-- Pause stops the pump and allows editing the amount. Resume is explicit.
+- Change **mL per trial** at any time without pausing. Each trial uses the amount entered when its third block fits. Edits after completion, including while juice is dispensing, apply to the next trial and do not alter the current pulse.
+- If the amount is empty or outside 0.15–90 mL when a trial completes, no reward is sent and play pauses. Correct the amount and resume; that completed trial is not rewarded again.
+- Pause stops the pump. Resume is explicit.
 - The firmware accepts 0.1–60-second pulses, corresponding to 0.15–90 mL per trial.
 - Hidden pages, lost connections, and failed pulses pause reward play. Interrupted rewards never replay automatically.
 - The next trial waits until the pump has stopped. There is no accumulating reward queue.
