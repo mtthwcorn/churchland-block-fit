@@ -13,7 +13,7 @@
 // If you ADD a new file to the app, also add it to FILES.
 // =============================================================================
 
-const CACHE_VERSION = 'v0.3.1';
+const CACHE_VERSION = 'v0.3.2';
 const CACHE_NAME = `nhp-touch-task-${CACHE_VERSION}`;
 
 const FILES = [

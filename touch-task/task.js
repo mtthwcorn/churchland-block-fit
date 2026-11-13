@@ -109,6 +109,8 @@ const els = {
   giveRewardBtn: $('give-reward-btn'),
   stopPumpBtn: $('stop-pump-btn'),
   pumpNote: $('pump-note'),
+  manualKeys: $('manual-keys'),
+  lastKey: $('last-key'),
 };
 
 // ---------- The pump ----------
@@ -135,9 +137,10 @@ let audioCtx = null;       // for the reward tone
 let wakeLock = null;       // keeps the screen from turning off
 let clockTimer = null;     // updates the live clock in the panel
 let lastPumpPhase = 'offline';
+let manualPulse = null;    // a manual reward in progress (a Promise), or null
 
 function newCounts() {
-  return { hit: 0, miss: 0, timeout: 0, aborted: 0, rewardsDelivered: 0, rewardFailures: 0, saveErrors: 0 };
+  return { hit: 0, miss: 0, timeout: 0, aborted: 0, rewardsDelivered: 0, rewardFailures: 0, manualRewards: 0, saveErrors: 0 };
 }
 
 // "20261110T140322" style compact time for IDs
@@ -188,6 +191,7 @@ function logEvent(type, detail) {
       : 'This browser has no Bluetooth access. Use Chrome on the Android tablet. Practice sessions still work here.';
   }
 
+  els.manualKeys.textContent = CONFIG.manualRewardKeys.join(', ') || 'none';
   placePumpBox(els.pumpSlotStart);
   refreshPump();
 
@@ -541,6 +545,10 @@ async function deliverJuice(t) {
 
   const firstSave = saveTrial(t); // save now, in case the battery dies mid-reward
   try {
+    // If a manual (button) reward is running, let it finish first; the pump
+    // runs one reward at a time.
+    if (manualPulse) await manualPulse;
+    if (token !== runToken) throw new Error('Task paused before the reward started.');
     await runner.pulse(plan.durationMs / 1000);
     t.rewardStatus = 'delivered';
     t.rewardDonePerfMs = performance.now();
@@ -605,18 +613,42 @@ els.rewardMl.addEventListener('input', () => {
 });
 
 // Hand reward: one pulse of the current amount (also handy for priming the line).
-els.giveRewardBtn.addEventListener('click', async () => {
+els.giveRewardBtn.addEventListener('click', () => giveManualReward('panel button'));
+
+// Manual juice from hardware keys (volume buttons, or a Bluetooth remote).
+document.addEventListener('keydown', (e) => {
+  els.lastKey.textContent = `${e.key || '?'} (code ${e.keyCode})`;
+  const isRewardKey = CONFIG.manualRewardKeys.includes(e.key) || CONFIG.manualRewardKeyCodes.includes(e.keyCode);
+  if (!isRewardKey) return;
+  e.preventDefault(); // stop the tablet changing its volume, where the browser allows
+  if (e.repeat) return; // holding the button down gives one reward, not many
+  giveManualReward('key ' + e.key);
+});
+
+// One manual reward of the current mL per hit. Skipped (and logged) if the
+// pump isn't ready or a reward is already running: rewards never queue up.
+async function giveManualReward(source) {
+  const note = (msg) => { els.pumpNote.hidden = false; els.pumpNote.textContent = msg; };
+  if (manualPulse || state === 'reward' || !pumpReady()) {
+    const why = !link.device?.gatt.connected ? 'pump not connected' : 'a reward is already running';
+    logEvent('manualRewardSkipped', `${source}: ${why}`);
+    note(`Manual reward skipped (${why}).`);
+    return;
+  }
   let plan;
   try { plan = rewardPlan(Number(els.rewardMl.value)); }
-  catch (e) { els.pumpNote.hidden = false; els.pumpNote.textContent = e.message; return; }
+  catch (e) { logEvent('manualRewardSkipped', `${source}: ${e.message}`); note(e.message); return; }
+
   let status = 'delivered';
-  try { await runner.pulse(plan.durationMs / 1000); }
-  catch (e) { status = 'failed: ' + e.message; }
-  logEvent('manualReward', `${plan.requestedMl} mL, ${plan.durationMs} ms, ${status}`);
-  els.pumpNote.hidden = false;
-  els.pumpNote.textContent = status === 'delivered' ? 'Manual reward delivered.' : 'Manual reward ' + status;
+  manualPulse = runner.pulse(plan.durationMs / 1000).catch((e) => { status = 'failed: ' + e.message; });
   refreshPump();
-});
+  await manualPulse;
+  manualPulse = null;
+  if (status === 'delivered') counts.manualRewards++;
+  logEvent('manualReward', `${source}: ${plan.requestedMl} mL, ${plan.durationMs} ms, ${status}`);
+  note(status === 'delivered' ? `Manual reward delivered (${source}).` : 'Manual reward ' + status);
+  refreshPump();
+}
 
 // Called whenever the pump's state changes.
 link.addEventListener('change', () => {
@@ -940,7 +972,7 @@ async function refreshAdminStatus() {
     const sessionLine = session
       ? `<b>Session:</b> ${session.sessionId} (${session.taskMode === 'anywhere' ? 'touch anywhere' : 'dot'}, ${session.rewardMode === 'juice' ? 'juice' : 'practice, no juice'})<br>` +
         `Trials ${trialNum}: ${c.hit} hit, ${c.miss} miss, ${c.timeout} timeout, ${c.aborted} aborted · ` +
-        `juice delivered ${c.rewardsDelivered}` +
+        `juice delivered ${c.rewardsDelivered} (+${c.manualRewards} manual)` +
         (c.rewardFailures ? ` · <span class="warn">${c.rewardFailures} reward failures</span>` : '') +
         (c.saveErrors ? `<br><span class="warn">${c.saveErrors} SAVE ERRORS: export now</span>` : '') + '<br>'
       : '<b>No session running.</b><br>';

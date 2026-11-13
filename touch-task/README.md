@@ -85,6 +85,17 @@ The repository's `vercel.json` makes every deployment do four things, in order:
    - **Stop pump**
    - export data, log a clock check, **Resume task**, or **End session**
 
+### Manual juice with the volume buttons
+
+Pressing either **volume button** gives one manual reward of the current mL per hit. This works whenever the pump is connected: during a session, between sessions, or with the panel open. Holding a button down gives one reward, not many. If a reward is already running, the press is skipped rather than queued. Every press is logged in the events, and the panel shows the count of manual rewards.
+
+**Check that your tablet supports this, once:** open the experimenter panel and press a volume button. If **Last key pressed** changes to `AudioVolumeUp` or `AudioVolumeDown`, it works. If it still says *none yet* and the tablet's volume changes instead, Chrome on that tablet doesn't pass the volume buttons to web pages; some Android browsers never do. In that case:
+
+- **Use a Bluetooth presentation remote or page turner** (about $10–20). These send keys such as `PageDown` or `ArrowRight`, which Chrome always passes on. Pair it with the tablet, press a button with the panel open to see its key name under **Last key pressed**, and add that name to `manualRewardKeys` in `config.js`, for example `['AudioVolumeUp', 'AudioVolumeDown', 'PageDown', 'PageUp']`.
+- Or use **Give one reward now** in the panel.
+
+> ⚠️ If the monkey can reach the tablet's volume buttons, or a paired remote, it can give itself juice. Make sure they're covered or out of reach.
+
 ### When the task stops itself
 
 These are the same safety rules as Block Fit. The task **stops on a black screen** and waits for you if:
