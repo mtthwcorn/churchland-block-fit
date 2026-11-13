@@ -11,9 +11,10 @@
 //                                          -> timeout -> penalty ITI
 //
 //   TOUCH-ANYWHERE task (first training step):
-//     [cooldown: black screen] -> [whole screen green] -> any touch = hit
-//                                 -> tone + juice -> cooldown -> ...
-//     The green screen waits indefinitely (no timeout, no misses).
+//     [whole screen green] -> any touch = hit -> tone + juice -> (optional
+//     cooldown) -> next touch rewarded. By default the screen stays green the
+//     whole time (CONFIG.anywhereStayGreen). It waits indefinitely: no
+//     timeout, no misses.
 //
 //   Tap the hidden corners (top-left, top-right, top-left) to pause and open
 //   the experimenter panel: pump, export data, check the clock, resume, end.
@@ -334,7 +335,7 @@ async function saveSession() {
 function scheduleNextTrial(extraDelayMs) {
   clearTimeout(itiTimer);
   state = 'iti';
-  setArenaColor(CONFIG.backgroundColor);
+  setArenaColor(betweenTrialsColor());
   const [lo, hi] = session.taskMode === 'anywhere' ? CONFIG.anywhereCooldownMs : CONFIG.itiMs;
   const delay = lo + Math.random() * (hi - lo) + (extraDelayMs || 0);
   itiTimer = setTimeout(showDot, delay);
@@ -352,6 +353,12 @@ function pickDotPosition() {
 }
 
 function setArenaColor(color) { els.arena.style.background = color; }
+
+// Screen color during juice delivery and the inter-trial interval/cooldown.
+function betweenTrialsColor() {
+  return session && session.taskMode === 'anywhere' && CONFIG.anywhereStayGreen
+    ? CONFIG.anywhereColor : CONFIG.backgroundColor;
+}
 
 // Starts a trial: shows the dot (dot task) or turns the screen green
 // (touch-anywhere task).
@@ -449,7 +456,7 @@ function endTrial(outcome, e, dist) {
   clearTimeout(responseTimer);
   responseTimer = null;
   els.dot.hidden = true;
-  setArenaColor(CONFIG.backgroundColor); // green off during juice + cooldown
+  setArenaColor(betweenTrialsColor()); // black during juice, unless staying green
 
   const t = current;
   current = null;

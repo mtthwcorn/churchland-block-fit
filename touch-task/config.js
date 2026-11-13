@@ -19,7 +19,7 @@ const CONFIG = {
   // Shown on the start screen and saved with every session, so you always
   // know which version of the task produced a given data file.
   // Keep this in step with CACHE_VERSION in sw.js.
-  appVersion: '0.3.0',
+  appVersion: '0.3.1',
 
   // ---------------- Which task ----------------
   // Chosen on the start screen; this is only the choice used the very first
@@ -30,11 +30,19 @@ const CONFIG = {
 
   // ---------------- Touch-anywhere task ----------------
   anywhereColor: '#00a651',     // screen color when a touch will be rewarded
-  // After each rewarded touch the screen goes to backgroundColor (black) for
-  // the juice delivery plus this "cooldown", drawn uniformly between the two
-  // values. Touches during it are counted but not rewarded, so the monkey can
-  // learn that green = touch now.
-  anywhereCooldownMs: [1000, 1500],
+
+  // true  = the screen stays green continuously, including while juice is
+  //         being delivered (it only goes black if the task stops itself).
+  // false = the screen goes black (backgroundColor) during the juice and the
+  //         cooldown below, as a cue that green = touch now.
+  anywhereStayGreen: true,
+
+  // Extra wait after each juice delivery before the next touch is rewarded,
+  // drawn uniformly between the two values. [0, 0] = no wait: the next touch
+  // is rewarded as soon as the pump has stopped.
+  // Touches while juice is still flowing are counted (itiTouchesBefore) but
+  // not rewarded, because the pump runs one reward at a time with no queue.
+  anywhereCooldownMs: [0, 0],
   // If true, touching during the cooldown restarts it.
   anywhereTouchRestartsCooldown: false,
   // The green screen waits as long as needed: there is no timeout in this task.

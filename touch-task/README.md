@@ -2,7 +2,7 @@
 
 This is a touch task that runs fully offline on an Android tablet. It has two task modes:
 
-- **Touch anywhere** (first training step): the whole screen turns green, and any touch gives juice.
+- **Touch anywhere** (first training step): the whole screen stays green, and any touch gives juice.
 - **Touch the dot**: only touches on the dot are rewarded.
 
 Hits are rewarded with juice from the lab's Bluetooth Arduino pump, using the same protocol as the Block Fit game. Every trial is saved on the tablet as soon as it ends. You export the data to files whenever you choose.
@@ -70,7 +70,8 @@ The repository's `vercel.json` makes every deployment do four things, in order:
 ## Part 3: Daily use
 
 1. Open the app from its icon, type the **subject** name, and choose the **Task**:
-   - **Touch anywhere (green screen)**: the screen turns green, and any touch gives juice. The screen then goes black during the juice and a 1–1.5 s cooldown; touches then are counted but not rewarded. The green screen waits as long as needed, so there are no timeouts or misses.
+   - **Touch anywhere (green screen)**: the screen stays green the whole time, and any touch gives juice. While juice is flowing, touches are counted but not rewarded, because the pump gives one reward at a time. The next touch after the pump stops is rewarded. There are no timeouts or misses. The screen goes black only if the task stops itself, for example if the pump disconnects.
+     - To bring back a black cooldown screen after each reward (green as a cue for "touch now"), set `anywhereStayGreen: false` and a cooldown such as `anywhereCooldownMs: [1000, 1500]` in `config.js`.
    - **Touch the dot**: the dot task described below.
 
    The choice is remembered for next time and saved with each session.
