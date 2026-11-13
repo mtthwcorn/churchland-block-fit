@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<!--
+  index.html — the page layout. There are four parts:
+    1. start-screen : subject name + Start button (what you see first)
+    2. arena        : the black task area where the dot appears
+    3. corner-tl/tr : invisible tap zones that open the experimenter panel
+    4. admin        : the experimenter panel (pump, export, clock checks, resume/end)
+    5. pump-box     : juice pump controls. There is only one copy; task.js moves
+                      it into whichever screen (start or panel) is showing.
+  The `hidden` attribute hides an element; task.js shows/hides them.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- Disable pinch-zoom so the monkey can't zoom the page -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>NHP Touch Task</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 1. START SCREEN -->
+  <div id="start-screen" class="panel">
+    <h1>NHP Touch Task <span id="version"></span></h1>
+    <label for="subject-input">Subject</label>
+    <input id="subject-input" type="text" autocomplete="off" autocapitalize="off" placeholder="e.g. monkeyA">
+    <label for="task-mode">Task</label>
+    <select id="task-mode">
+      <option value="anywhere">Touch anywhere (green screen)</option>
+      <option value="dot">Touch the dot</option>
+    </select>
+    <div id="pump-slot-start"></div>
+    <button id="start-juice-btn" class="big">Start with juice</button>
+    <button id="start-practice-btn">Start practice (no juice)</button>
+    <p id="start-msg" class="msg"></p>
+    <p id="start-status" class="status"></p>
+    <button id="start-admin-btn">Experimenter panel (export / clock)</button>
+  </div>
+
+  <!-- 2. TASK AREA -->
+  <div id="arena" hidden>
+    <div id="dot" hidden></div>
+    <!-- Dim note shown only when the task has stopped itself (e.g. pump lost) -->
+    <p id="halt-msg" hidden></p>
+  </div>
+
+  <!-- 3. HIDDEN CORNERS: tap top-left, top-right, top-left to open the panel -->
+  <div id="corner-tl" class="corner" hidden></div>
+  <div id="corner-tr" class="corner" hidden></div>
+
+  <!-- 4. EXPERIMENTER PANEL -->
+  <div id="admin" class="panel" hidden>
+    <h2>Experimenter panel</h2>
+    <p id="admin-status" class="status"></p>
+
+    <section>
+      <h3>Juice pump</h3>
+      <div id="pump-slot-admin"></div>
+    </section>
+
+    <section>
+      <h3>Data</h3>
+      <button id="export-btn" class="big">Export all data to Downloads</button>
+      <button id="clear-btn" class="danger">Clear exported data from tablet…</button>
+      <p id="admin-msg" class="msg"></p>
+    </section>
+
+    <section>
+      <h3>Clock check</h3>
+      <p>Tablet clock: <span id="tablet-clock" class="clock">--:--:--.---</span></p>
+      <p class="hint">Manual (offline): type a reference time a few seconds ahead, then tap
+        <i>Log</i> exactly when the reference clock reaches it.</p>
+      <input id="ref-time-input" type="text" inputmode="numeric" placeholder="HH:MM:SS">
+      <button id="manual-clock-btn">Log manual check</button>
+      <button id="online-clock-btn">Online check (needs Wi-Fi)</button>
+      <p id="clock-msg" class="msg"></p>
+    </section>
+
+    <section>
+      <button id="resume-btn" class="big">Resume task</button>
+      <button id="end-btn" class="danger">End session</button>
+      <button id="close-admin-btn">Close</button>
+    </section>
+  </div>
+
+  <!-- 5. PUMP CONTROLS (moved into the start screen or the panel by task.js) -->
+  <div id="pump-box">
+    <button id="connect-btn">Connect pump</button>
+    <button id="disconnect-btn" hidden>Disconnect</button>
+    <span id="pump-label" class="pump-label">Not connected</span>
+    <label for="reward-ml">mL per hit</label>
+    <input id="reward-ml" type="number" min="0.15" max="90" step="any" inputmode="decimal" placeholder="mL">
+    <span id="dose-preview" class="hint"></span>
+    <div>
+      <button id="give-reward-btn">Give one reward now</button>
+      <button id="stop-pump-btn" class="danger">Stop pump</button>
+    </div>
+    <p id="pump-note" class="hint" hidden></p>
+  </div>
+
+  <!-- Order matters: config first, then storage, then the task.
+       task.js is a "module" so it can import the pump code (ble.mjs, rewards.mjs). -->
+  <script src="config.js"></script>
+  <script src="storage.js"></script>
+  <script type="module" src="task.js"></script>
+</body>
+</html>
