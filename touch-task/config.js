@@ -19,7 +19,7 @@ const CONFIG = {
   // Shown on the start screen and saved with every session, so you always
   // know which version of the task produced a given data file.
   // Keep this in step with CACHE_VERSION in sw.js.
-  appVersion: '0.3.2',
+  appVersion: '0.4.0',
 
   // ---------------- Which task ----------------
   // Chosen on the start screen; this is only the choice used the very first
