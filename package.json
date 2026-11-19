@@ -5,8 +5,10 @@
   "type": "module",
   "description": "Three-piece touchscreen puzzle with a juice reward after each completed trial.",
   "scripts": {
-    "build": "node build.mjs",
-    "test": "node --test tests/*.test.mjs"
+    "build": "node build.mjs && node touch-task/build.mjs dist/touch-task && node pump/build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:firmware": "c++ -std=c++11 -Wall -Wextra -Werror tests/pump_control.cpp -o /tmp/eric-pump-control-test && /tmp/eric-pump-control-test",
+    "test:all": "npm test && node --test touch-task/tests/*.test.mjs"
   },
   "engines": {
     "node": "22.x"
