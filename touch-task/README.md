@@ -85,6 +85,15 @@ The repository's `vercel.json` makes every deployment do four things, in order:
    - **Stop pump**
    - export data, log a clock check, **Resume task**, or **End session**
 
+### Physical juice button (wired to the Arduino)
+
+Matt's **Eric Pump v3** firmware adds a push button wired to the Arduino (D2 to GND). Wiring, firmware upload and dose setup are in `firmware/README.md`; set the button's dose at `https://churchland-block-fit.vercel.app/pump/#settings`.
+
+- **Pressing it during the task gives juice right away.** The Arduino handles the button itself, using the dose saved on the Arduino, not the task's **mL per hit**. It works whether or not the tablet is connected, even when the task is paused.
+- **The task waits instead of stopping.** If the monkey earns a reward while a button dose is running, the task waits for the pump to stop and then gives the earned reward. The wait is recorded in `rewardWaitMs`.
+- **Every press is logged** as events (`physicalButtonStart`, `physicalButtonReward`) with timestamps and an estimated volume. The panel shows the count, and the pump box shows the button's saved dose, read from the Arduino when you connect. If it says *not detected*, the Arduino still has older firmware.
+- **Rare case:** if the button is pressed within a few hundredths of a second of the tablet starting its own reward, the Arduino keeps only one of them. The task may then stop with "pump stopped early". Open the panel and tap **Resume task**.
+
 ### Manual juice with the volume buttons
 
 Pressing either **volume button** gives one manual reward of the current mL per hit. This works whenever the pump is connected: during a session, between sessions, or with the panel open. Holding a button down gives one reward, not many. If a reward is already running, the press is skipped rather than queued. Every press is logged in the events, and the panel shows the count of manual rewards.
@@ -171,6 +180,7 @@ Each check stores `offsetMs`, which is tablet time minus reference time (positiv
 | `rewardEstimatedMl` | `rewardDurationMs` × 90 mL/min. This is an **estimate**, not measured flow |
 | `rewardStatus` | `delivered` (the Arduino confirmed a full run), `practice`, or `failed: <reason>` |
 | `rewardDonePerfMs` | When the Arduino confirmed the pump stopped |
+| `rewardWaitMs` | Time the reward waited for a running physical-button or manual dose to finish |
 | `trialEndWallMs`, `trialEndPerfMs` | The clock pair at the end of the trial |
 
 ### Loading in Python

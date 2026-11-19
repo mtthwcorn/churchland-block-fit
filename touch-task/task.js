@@ -34,6 +34,13 @@
 //   - Opening the panel, or the app going to the background, stops the pump.
 //   - The Arduino also stops by itself if the tablet's heartbeat goes quiet.
 //
+// PHYSICAL JUICE BUTTON (Eric Pump v3 firmware, see firmware/README.md):
+//   A button wired to the Arduino gives the dose saved ON THE ARDUINO, with or
+//   without the tablet. The tablet can't trigger or block it, but it sees the
+//   pump start and stop, so it (1) logs every button dose as an event, and
+//   (2) if the monkey earns a reward while a button dose is running, waits for
+//   the pump to finish and then gives the earned reward, instead of stopping.
+//
 // ABOUT THE TWO CLOCKS (why every record has both):
 //
 //   Date.now()        "wall clock": milliseconds since 1 Jan 1970 (UTC).
@@ -109,6 +116,7 @@ const els = {
   giveRewardBtn: $('give-reward-btn'),
   stopPumpBtn: $('stop-pump-btn'),
   pumpNote: $('pump-note'),
+  buttonDose: $('button-dose'),
   manualKeys: $('manual-keys'),
   lastKey: $('last-key'),
 };
@@ -138,9 +146,17 @@ let wakeLock = null;       // keeps the screen from turning off
 let clockTimer = null;     // updates the live clock in the panel
 let lastPumpPhase = 'offline';
 let manualPulse = null;    // a manual reward in progress (a Promise), or null
+let physicalStartPerf = null; // when a physical-button dose started, or null
+let buttonDoseMs = null;   // dose saved on the Arduino for its button (0 = off,
+                           // null = unknown / older firmware without the button)
+
+// The Arduino's button-settings characteristic (Eric Pump v3 firmware):
+// byte 0 = protocol version 1, bytes 1-4 = saved button dose in ms (0 = disabled).
+const BUTTON_SETTINGS_UUID = '3e61a103-27c5-4b4a-a89d-72b7b1478420';
+const PUMP_SERVICE_UUID = '3e61a100-27c5-4b4a-a89d-72b7b1478420';
 
 function newCounts() {
-  return { hit: 0, miss: 0, timeout: 0, aborted: 0, rewardsDelivered: 0, rewardFailures: 0, manualRewards: 0, saveErrors: 0 };
+  return { hit: 0, miss: 0, timeout: 0, aborted: 0, rewardsDelivered: 0, rewardFailures: 0, manualRewards: 0, physicalRewards: 0, saveErrors: 0 };
 }
 
 // "20261110T140322" style compact time for IDs
@@ -262,6 +278,7 @@ async function startSession(rewardMode) {
     taskMode: els.taskMode.value,       // 'anywhere' or 'dot'
     rewardMode,                         // 'juice' or 'practice'
     pumpName: rewardMode === 'juice' ? (link.device?.name || 'pump') : null,
+    buttonDoseMs,                       // dose saved for the Arduino's physical button
     pumpMlPerMinute: PUMP_ML_PER_MINUTE,
     startWallMs: wall,
     startPerfMs: perf,
@@ -408,6 +425,8 @@ function showDot() {
     rewardEstimatedMl: null,           // run time x 90 mL/min (an estimate)
     rewardStatus: null,                // 'delivered', 'practice', or 'failed: ...'
     rewardDonePerfMs: null,            // when the Arduino confirmed the stop
+    rewardWaitMs: null,                // time spent waiting for a running button /
+                                       // manual dose to finish before this reward
     trialEndWallMs: null,
     trialEndPerfMs: null,
     exported: 0,
@@ -545,9 +564,11 @@ async function deliverJuice(t) {
 
   const firstSave = saveTrial(t); // save now, in case the battery dies mid-reward
   try {
-    // If a manual (button) reward is running, let it finish first; the pump
-    // runs one reward at a time.
-    if (manualPulse) await manualPulse;
+    // If a manual reward or a physical-button dose is running, let it finish
+    // first: the pump runs one reward at a time.
+    const waitStart = performance.now();
+    await waitForPumpFree();
+    t.rewardWaitMs = performance.now() - waitStart;
     if (token !== runToken) throw new Error('Task paused before the reward started.');
     await runner.pulse(plan.durationMs / 1000);
     t.rewardStatus = 'delivered';
@@ -563,6 +584,42 @@ async function deliverJuice(t) {
   if (token !== runToken) return; // the task was paused during the reward
   if (t.rewardStatus === 'delivered') scheduleNextTrial(0);
   else haltTask('Reward failed: ' + t.rewardStatus.slice(8));
+}
+
+// Resolves once no other dose is running (manual reward from the panel or keys,
+// or the Arduino's physical button). Rejects if the pump disconnects, or if it
+// stays busy longer than the longest possible dose (60 s) plus a margin.
+async function waitForPumpFree() {
+  if (manualPulse) await manualPulse;
+  if (pumpReady()) return;
+  await new Promise((resolve, reject) => {
+    const done = (fn, arg) => { link.removeEventListener('change', check); clearTimeout(timer); fn(arg); };
+    const check = () => {
+      if (link.phase === 'offline') done(reject, new Error(link.message || 'Pump disconnected.'));
+      else if (pumpReady()) done(resolve);
+    };
+    const timer = setTimeout(() => done(reject, new Error('The pump stayed busy too long.')), 65000);
+    link.addEventListener('change', check);
+    check();
+  });
+}
+
+// Read the dose saved for the Arduino's physical button, right after connecting.
+// Older firmware has no button: that's fine, the task works the same without it.
+async function readButtonDose() {
+  try {
+    const value = await link.enqueue(async () => {
+      const service = await link.device.gatt.getPrimaryService(PUMP_SERVICE_UUID);
+      const characteristic = await service.getCharacteristic(BUTTON_SETTINGS_UUID);
+      return characteristic.readValue();
+    });
+    if (!value || value.byteLength !== 5 || value.getUint8(0) !== 1) throw new Error('unsupported');
+    buttonDoseMs = value.getUint32(1, true);
+    logEvent('buttonDoseRead', `${buttonDoseMs} ms (${(buttonDoseMs * PUMP_ML_PER_MINUTE / 60000).toFixed(3)} mL)`);
+  } catch (e) {
+    buttonDoseMs = null; // older firmware, or the read failed; the button may still work
+  }
+  refreshPump();
 }
 
 // Stop the pump if it is connected; never throws.
@@ -655,7 +712,21 @@ link.addEventListener('change', () => {
   const phase = link.phase;
   if (phase === 'idle' && ['offline', 'connecting', 'checking'].includes(lastPumpPhase)) {
     logEvent('pumpConnected', link.device?.name || '');
+    readButtonDose();
   }
+  // The pump started without the tablet asking: the Arduino's physical button.
+  if (phase === 'running' && lastPumpPhase !== 'running' && !runner.busy && link.pending !== 'run') {
+    physicalStartPerf = performance.now();
+    logEvent('physicalButtonStart', buttonDoseMs ? `saved dose ${buttonDoseMs} ms` : '');
+  }
+  if (phase !== 'running' && physicalStartPerf !== null) {
+    const ms = performance.now() - physicalStartPerf;
+    physicalStartPerf = null;
+    counts.physicalRewards++;
+    logEvent('physicalButtonReward', `ran ~${Math.round(ms)} ms, ~${(ms * PUMP_ML_PER_MINUTE / 60000).toFixed(2)} mL estimated` +
+      (phase === 'offline' ? ' (pump disconnected during it)' : ''));
+  }
+  if (phase === 'offline') buttonDoseMs = null;
   if (phase === 'offline' && lastPumpPhase !== 'offline') {
     logEvent('pumpDisconnected', link.message || '');
     // A juice session cannot continue without the pump.
@@ -669,6 +740,10 @@ link.addEventListener('change', () => {
 
 function refreshPump() {
   const connected = !!link.device?.gatt.connected && !['offline', 'connecting'].includes(link.phase);
+  els.buttonDose.textContent = !connected ? ''
+    : buttonDoseMs === null ? '· Physical button: not detected (older firmware?)'
+    : buttonDoseMs === 0 ? '· Physical button: off (set a dose at /pump/#settings)'
+    : `· Physical button: ${(buttonDoseMs * PUMP_ML_PER_MINUTE / 60000).toFixed(2)} mL (${buttonDoseMs} ms), saved on Arduino`;
   els.pumpLabel.textContent =
     link.phase === 'connecting' ? 'Connecting…'
     : link.phase === 'running' ? `${link.device?.name || 'Pump'}: running`
@@ -972,7 +1047,7 @@ async function refreshAdminStatus() {
     const sessionLine = session
       ? `<b>Session:</b> ${session.sessionId} (${session.taskMode === 'anywhere' ? 'touch anywhere' : 'dot'}, ${session.rewardMode === 'juice' ? 'juice' : 'practice, no juice'})<br>` +
         `Trials ${trialNum}: ${c.hit} hit, ${c.miss} miss, ${c.timeout} timeout, ${c.aborted} aborted · ` +
-        `juice delivered ${c.rewardsDelivered} (+${c.manualRewards} manual)` +
+        `juice delivered ${c.rewardsDelivered} (+${c.manualRewards} manual, +${c.physicalRewards} physical button)` +
         (c.rewardFailures ? ` · <span class="warn">${c.rewardFailures} reward failures</span>` : '') +
         (c.saveErrors ? `<br><span class="warn">${c.saveErrors} SAVE ERRORS: export now</span>` : '') + '<br>'
       : '<b>No session running.</b><br>';
