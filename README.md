@@ -2,6 +2,23 @@
 
 A simple touchscreen puzzle for Android tablets running Chrome. Three pieces fit into a square. Drag a piece into its matching space, or tap the piece and then the space. Completed puzzles start another trial automatically.
 
+## Physical juice button
+
+**[Open the juice button console](https://churchland-block-fit.vercel.app/pump/)** · **[Button settings](https://churchland-block-fit.vercel.app/pump/#settings)**
+
+Connect a normally-open two-wire momentary button between **D2** and **GND**. Upload
+[Eric Pump v3 firmware](firmware/README.md), then connect in the new console, set
+**mL per press**, and save to Arduino. One press gives one timed dose; holding the
+button does not repeat. The saved setting survives power cycles and works without
+Bluetooth. The on-screen **Give juice** button uses the same saved dose.
+
+The conversion remains **90 mL/min = 1.5 mL/s**, an estimate to verify against
+collected liquid. The new console reads settings from the Arduino, confirms saves,
+and detects older firmware. It includes an upload guide and firmware ZIP download.
+
+Block Fit remains at `/`; the newer NHP task is available at `/touch-task/`. Their
+per-trial reward amounts are separate from the physical-button setting.
+
 ## Juice rewards
 
 Each tablet connects directly over Bluetooth to its own Arduino UNO R4 WiFi and pump using the existing Eric Pump firmware. No pump requests go through a cloud server.
@@ -25,12 +42,13 @@ Use Node.js 22. No third-party JavaScript packages are required.
 
 ```sh
 npm ci
-npm test
+npm run test:all
+npm run test:firmware
 npm run build
 python3 -m http.server 8765 --directory dist
 ```
 
-Open `http://localhost:8765/`. The build produces a standalone static site in `dist/`. Automated tests exercise puzzle rules, completed-trial rewards, timing, pause/reconnect behavior, and Bluetooth packets. Actual dispensing requires verification on the tablet and pump.
+Open `http://localhost:8765/`. The build produces a standalone static site in `dist/`. Automated tests also check button debounce, saved-dose validation, settings readback and reconnection. Firmware compiles for `arduino:renesas_uno:unor4wifi`. Automated tests exercise puzzle rules, completed-trial rewards, timing, pause/reconnect behavior, and Bluetooth packets. Actual dispensing requires verification on the tablet and pump.
 
 ## Vercel
 

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#185c43">
+  <meta name="description" content="One press, one juice dose. Set your Arduino button dose in mL.">
+  <title>Juice button</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <header><a class="brand" href="#pump">Juice button<span aria-hidden="true">●</span></a><nav aria-label="Pump navigation"><a href="#pump" id="pump-tab">Pump</a><a href="#settings" id="settings-tab">Settings</a></nav></header>
+    <section class="console">
+      <div class="connection"><span id="status" role="status">Not connected</span><button id="connect" class="secondary">Connect Bluetooth</button><button id="disconnect" class="secondary" hidden>Disconnect</button></div>
+      <div id="pump-page">
+        <div class="dose"><span id="amount">—</span><span class="unit">mL</span><p>per press · estimated</p></div>
+        <div class="actions"><button id="give" disabled>Give juice</button><button id="stop" class="stop" disabled>Stop</button></div>
+        <p id="saved-state" class="hint">Connect to read the saved dose.</p>
+      </div>
+      <form id="settings-page" hidden>
+        <h1>Button settings</h1>
+        <label class="toggle"><input id="enabled" type="checkbox" checked>Enable physical button</label>
+        <label for="dose-ml">Juice per press <span>(mL)</span></label>
+        <input id="dose-ml" type="number" inputmode="decimal" min="0.15" max="90" step="any" value="0.3" required aria-describedby="duration">
+        <p class="hint" id="duration">0.2 seconds per press</p>
+        <button id="save" type="submit" disabled>Save to Arduino</button>
+        <p class="hint">Save once. Then use the physical button without Bluetooth.</p>
+        <details><summary>First-time setup</summary><p>Upload the <a href="./pump-button-firmware.zip" download>button firmware</a> to your UNO R4 WiFi. Connect a normally-open momentary button between <strong>D2</strong> and <strong>GND</strong>. Then connect here and save a dose.</p><p><a href="./setup.html">Wiring and upload steps</a></p></details>
+      </form>
+      <p id="message" role="status" aria-live="polite"></p>
+    </section>
+    <footer><p>90 mL/min · 1.5 mL/s <span>Estimated flow; actual output depends on your setup.</span></p><div><a href="/">Block Fit</a><a href="/touch-task/">Touch task</a></div></footer>
+  </main>
+  <noscript>Enable JavaScript to connect to the pump.</noscript>
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>

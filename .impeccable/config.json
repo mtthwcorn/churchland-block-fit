@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "game/index.html"
+        ],
+        "createdAt": "2026-11-19T19:27:11.346Z",
+        "reason": "Assistant verified game/style.css declares 32px h1 and distinct heading sizes; build.mjs injects styles into the HTML template. The detector sees the unbuilt template without CSS."
+      }
+    ]
+  }
+}
